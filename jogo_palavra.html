@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Configurações para funcionar como Web App no Celular -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Jogo das Palavras e Sons</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', 'Arial', sans-serif;
+            user-select: none;
+        }
+        body {
+            background-color: #eef5fc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 15px;
+        }
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 24px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+            text-align: center;
+            max-width: 650px;
+            width: 100%;
+        }
+        h1 {
+            color: #d90429;
+            margin-top: 0;
+            margin-bottom: 5px;
+            font-size: 2rem;
+        }
+        .instrucao {
+            font-size: 1.1rem;
+            color: #4a5568;
+            margin-bottom: 15px;
+        }
+        .card-figura {
+            background-color: #fff3bf;
+            border: 4px solid #ffd43b;
+            border-radius: 20px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .emoji-figura {
+            font-size: 5rem;
+            line-height: 1;
+            margin-bottom: 10px;
+        }
+        .btn-ouvir {
+            background-color: #ff922b;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 8px 20px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #d9480f;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-ouvir:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #d9480f;
+        }
+        .palavra-box {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 20px 0;
+        }
+        .letra-slot {
+            width: 55px;
+            height: 65px;
+            border: 3px dashed #4d96ff;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2rem;
+            font-weight: bold;
+            color: #1e3a8a;
+            background-color: #ebf8ff;
+            transition: all 0.2s;
+        }
+        .letra-slot.revelada {
+            border-style: solid;
+            border-color: #6bcb77;
+            background-color: #e6fcf5;
+            color: #2b8a3e;
+        }
+        .teclado {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        .btn-letra {
+            width: 48px;
+            height: 52px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            background-color: #4d96ff;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #1e40af;
+            transition: transform 0.1s, background-color 0.2s;
+            touch-action: manipulation;
+        }
+        .btn-letra:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+        .btn-letra.erro {
+            background-color: #ff6b6b !important;
+            box-shadow: 0 4px 0 #c92a2a !important;
+            animation: tremer 0.3s ease-in-out;
+        }
+        .btn-letra:disabled {
+            background-color: #cbd5e1;
+            box-shadow: none;
+            cursor: not-allowed;
+            color: #64748b;
+        }
+        .mensagem {
+            font-size: 1.5rem;
+            font-weight: bold;
+            height: 45px;
+            margin-top: 10px;
+            color: #2b8a3e;
+        }
+        .btn-proximo {
+            margin-top: 15px;
+            padding: 12px 30px;
+            font-size: 1.2rem;
+            background-color: #6bcb77;
+            color: white;
+            font-weight: bold;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #2b8a3e;
+            touch-action: manipulation;
+        }
+        .btn-proximo:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #2b8a3e;
+        }
+
+        .creditos {
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: #718096;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 10px;
+        }
+
+        @keyframes tremer {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            50% { transform: translateX(6px); }
+            75% { transform: translateX(-6px); }
+            100% { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🔤 Monte a Palavra</h1>
+    <div class="instrucao">Clique ou toque nas letras para formar a palavra:</div>
+
+    <div class="card-figura">
+        <div class="emoji-figura" id="emojiFigura">🐱</div>
+        <button class="btn-ouvir" onclick="falarNomeObjeto()">🔊 Ouvir Nome</button>
+    </div>
+
+    <div class="palavra-box" id="palavraBox"></div>
+
+    <div class="mensagem" id="mensagem"></div>
+
+    <div class="teclado" id="teclado"></div>
+
+    <button class="btn-proximo" onclick="novaRodada()">Próxima Palavra ➡️</button>
+
+    <div class="creditos">
+        Desenvolvido por <b>Erik Alves</b>
+    </div>
+</div>
+
+<script>
+    const bancoDePalavras = [
+        { palavra: "GATO", emoji: "🐱" },
+        { palavra: "SAPO", emoji: "🐸" },
+        { palavra: "VACA", emoji: "🐮" },
+        { palavra: "PATO", emoji: "🦆" },
+        { palavra: "TATU", emoji: "🦔" },
+        { palavra: "MACACO", emoji: "🐒" },
+        { palavra: "CORUJA", emoji: "🦉" },
+        { palavra: "LOBO", emoji: "🐺" },
+        { palavra: "PEIXE", emoji: "🐟" },
+        { palavra: "CAVALO", emoji: "🐴" },
+        { palavra: "BOLO", emoji: "🎂" },
+        { palavra: "SUCO", emoji: "🧃" },
+        { palavra: "MAÇA", emoji: "🍎" },
+        { palavra: "LIMA", emoji: "🍋" },
+        { palavra: "SOPA", emoji: "🍲" },
+        { palavra: "CAFE", emoji: "☕" },
+        { palavra: "PIPOCA", emoji: "🍿" },
+        { palavra: "BANANA", emoji: "🍌" },
+        { palavra: "BATATA", emoji: "🥔" },
+        { palavra: "BOLA", emoji: "⚽" },
+        { palavra: "CASA", emoji: "🏠" },
+        { palavra: "DADO", emoji: "🎲" },
+        { palavra: "MESA", emoji: "🪑" },
+        { palavra: "BOTA", emoji: "👢" },
+        { palavra: "FOGO", emoji: "🔥" },
+        { palavra: "ROBO", emoji: "🤖" },
+        { palavra: "LATA", emoji: "🥫" },
+        { palavra: "LUPA", emoji: "🔍" },
+        { palavra: "MALA", emoji: "🧳" },
+        { palavra: "COPO", emoji: "🥛" },
+        { palavra: "FITA", emoji: "🎗️" },
+        { palavra: "LIXO", emoji: "🗑️" },
+        { palavra: "PANELA", emoji: "🍳" },
+        { palavra: "SAPATO", emoji: "👞" },
+        { palavra: "BONECA", emoji: "🧸" }
+    ];
+
+    const alfabeto = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+    let itemAtual = null;
+    let lacunasRestantes = [];
+
+    function falar(texto, velocidade = 0.85) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(texto);
+            utterance.lang = 'pt-BR';
+            utterance.rate = velocidade;
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+
+    function falarNomeObjeto() {
+        if (itemAtual) {
+            falar("A palavra é: " + itemAtual.palavra);
+        }
+    }
+
+    function novaRodada() {
+        document.getElementById('mensagem').innerText = "";
+        document.getElementById('mensagem').style.color = "#2b8a3e";
+        
+        itemAtual = bancoDePalavras[Math.floor(Math.random() * bancoDePalavras.length)];
+        document.getElementById('emojiFigura').innerText = itemAtual.emoji;
+
+        lacunasRestantes = itemAtual.palavra.split("").map((_, index) => index);
+
+        renderizarPalavra();
+        renderizarTeclado();
+
+        setTimeout(() => {
+            falarNomeObjeto();
+        }, 300);
+    }
+
+    function renderizarPalavra() {
+        const box = document.getElementById('palavraBox');
+        box.innerHTML = "";
+
+        itemAtual.palavra.split("").forEach((letra, index) => {
+            const slot = document.createElement('div');
+            slot.classList.add('letra-slot');
+            
+            if (lacunasRestantes.includes(index)) {
+                slot.innerText = "_";
+            } else {
+                slot.innerText = letra;
+                slot.classList.add('revelada');
+            }
+            box.appendChild(slot);
+        });
+    }
+
+    function renderizarTeclado() {
+        const teclado = document.getElementById('teclado');
+        teclado.innerHTML = "";
+
+        alfabeto.forEach(letra => {
+            const btn = document.createElement('button');
+            btn.classList.add('btn-letra');
+            btn.id = `btn-${letra}`;
+            btn.innerText = letra;
+            btn.onclick = () => tentarLetra(letra);
+            teclado.appendChild(btn);
+        });
+    }
+
+    function tentarLetra(letra) {
+        if (lacunasRestantes.length === 0) return;
+
+        const botao = document.getElementById(`btn-${letra}`);
+        if (botao && botao.disabled) return;
+
+        let acertou = false;
+
+        for (let i = 0; i < itemAtual.palavra.length; i++) {
+            if (lacunasRestantes.includes(i) && itemAtual.palavra[i] === letra) {
+                const indexNoArray = lacunasRestantes.indexOf(i);
+                lacunasRestantes.splice(indexNoArray, 1);
+                acertou = true;
+                break;
+            }
+        }
+
+        if (acertou) {
+            falar(letra, 1.0);
+            renderizarPalavra();
+
+            if (lacunasRestantes.length === 0) {
+                document.getElementById('mensagem').innerText = "Muito Bem! 👏🎉";
+                document.getElementById('mensagem').style.color = "#2b8a3e";
+                setTimeout(() => {
+                    falar("Parabéns! Você formou a palavra " + itemAtual.palavra);
+                }, 600);
+            }
+        } else {
+            document.getElementById('mensagem').innerText = "Ops! Tente outra letra! ❌";
+            document.getElementById('mensagem').style.color = "#c92a2a";
+
+            falar(letra + ". Ops, letra incorreta", 0.9);
+
+            if (botao) {
+                botao.classList.add('erro');
+                botao.disabled = true;
+            }
+        }
+    }
+
+    document.addEventListener('keydown', (event) => {
+        const tecla = event.key.toUpperCase();
+        if (alfabeto.includes(tecla)) {
+            tentarLetra(tecla);
+        }
+    });
+
+    window.onload = () => {
+        novaRodada();
+    };
+</script>
+
+</body>
+</html>
