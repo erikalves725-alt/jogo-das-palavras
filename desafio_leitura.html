@@ -33,9 +33,7 @@
             gap: 12px;
         }
 
-        header {
-            text-align: center;
-        }
+        header { text-align: center; }
 
         h1 {
             color: #2b6cb0;
@@ -119,11 +117,6 @@
             box-shadow: 0 4px 0 #c05621;
         }
 
-        .btn-modo {
-            background-color: #805ad5;
-            box-shadow: 0 4px 0 #553c9a;
-        }
-
         .caixa-texto {
             background-color: #fffaf0;
             border: 2px solid #feebc8;
@@ -205,7 +198,7 @@
 
 <div class="container">
     <header>
-        <h1>📖 Desafio de Leitura de 1 Minuto</h1>
+        <h1>🎤 Desafio de Leitura (AI Whisper)</h1>
         <div class="seletor-texto">
             <button class="btn-texto ativo" onclick="selecionarTexto(0)">Texto 1</button>
             <button class="btn-texto" onclick="selecionarTexto(1)">Texto 2</button>
@@ -221,12 +214,11 @@
         </div>
         <div>
             <button class="btn-acao" id="btnIniciar" onclick="alternarLeitura()">▶️ Iniciar Leitura</button>
-            <button class="btn-acao btn-modo" id="btnModo" onclick="alternarModo()">🎙️ Voz: ON</button>
             <button class="btn-acao btn-reiniciar" onclick="reiniciarTudo()">🔄 Reiniciar</button>
         </div>
     </div>
 
-    <div class="status-microfone" id="statusMicrofone"></div>
+    <div class="status-microfone" id="statusMicrofone">Carregando IA de voz...</div>
 
     <div class="contador-palavras" id="contadorPalavras">Palavras lidas: 0 / 100</div>
 
@@ -235,11 +227,13 @@
     <div class="mensagem-resultado" id="mensagemResultado"></div>
 
     <div class="creditos">
-        Desenvolvido para incentivar a leitura infantil ❤️
+        Desenvolvido para incentivar a leitura infantil Erik Alves.
     </div>
 </div>
 
-<script>
+<script type="module">
+    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.14.0';
+
     const textos = [
         "Era uma vez um cachorrinho muito esperto chamado Bob. Bob adorava correr pelo parque todas as manhãs. Ele gostava de perseguir passarinhos e brincar com as folhas secas que caíam das árvores. Um dia Bob encontrou uma bola vermelha escondida no arbusto. Ele ficou muito feliz e levou a bola na boca até a sua casa. O seu dono vendo aquela alegria deu um delicioso osso para ele. Bob comeu o osso e depois dormiu bem quentinho na sua cama macia. Foi um dia incrível para o pequeno cãozinho que sonhou com novas aventuras divertidas no parque.",
         "No céu azul brilhava uma pequena estrela chamada Luma. Luma era muito curiosa e gostava de olhar para a Terra durante a noite. Ela via as luzes das casas e as crianças dormindo em suas camas. Um dia Luma pediu permissão para a Lua para brilhar um pouco mais forte. A Lua sorriu e deixou. Luma piscou bem alto e iluminou o caminho de um gatinho que estava perdido na rua. O gatinho encontrou a sua casa e miou de felicidade. Luma ficou orgulhos de ter ajudado o seu novo amigo e continuou a brilhar alegremente no céu.",
@@ -254,32 +248,20 @@
     let rodando = false;
     let indicePalavraAtual = 0;
     let palavrasArray = [];
-    let usarVoz = true;
 
-    let recognition = null;
+    let transcriber = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
 
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true; // Captura falas intermediárias em tempo real
-        recognition.lang = 'pt-BR';
-
-        recognition.onresult = (event) => {
-            if (!rodando || !usarVoz) return;
-
-            let transcricaoTotal = "";
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                transcricaoTotal += event.results[i][0].transcript + " ";
-            }
-            processarVozFluida(transcricaoTotal);
-        };
-
-        recognition.onend = () => {
-            if (rodando && usarVoz) {
-                try { recognition.start(); } catch(e){}
-            }
-        };
+    // Inicializa o modelo Whisper
+    async function initWhisper() {
+        try {
+            document.getElementById('statusMicrofone').innerText = "⏳ Carregando modelo Whisper da OpenAI (aguarde)...";
+            transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny');
+            document.getElementById('statusMicrofone').innerText = "✅ IA de voz pronta! Clique em Iniciar.";
+        } catch(e) {
+            document.getElementById('statusMicrofone').innerText = "⚠️ Erro ao carregar IA. Você pode tocar no texto para marcar.";
+        }
     }
 
     function renderizarTexto() {
@@ -306,42 +288,54 @@
         return termo.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toLowerCase().trim();
     }
 
-    // Compara similaridade básica de duas palavras
-    function saoSimilares(p1, p2) {
-        if (!p1 || !p2) return false;
-        if (p1 === p2) return true;
-        // Se a palavra tiver mais de 3 letras e uma contiver a outra
-        if (p1.length > 3 && p2.length > 3) {
-            if (p1.startsWith(p2.substring(0, 3)) || p2.startsWith(p1.substring(0, 3))) {
-                return true;
-            }
+    async function gravarEProcessar() {
+        if (!rodando) return;
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.onstop = async () => {
+                const blob = new Blob(audioChunks, { type: 'audio/wav' });
+                if (transcriber && rodando) {
+                    const audioUrl = URL.createObjectURL(blob);
+                    const output = await transcriber(audioUrl, { language: 'portuguese', task: 'transcribe' });
+                    if (output && output.text) {
+                        processarTextoOuvido(output.text);
+                    }
+                }
+                if (rodando) gravarEProcessar(); // Ciclo contínuo
+            };
+
+            mediaRecorder.start();
+            setTimeout(() => {
+                if (mediaRecorder && mediaRecorder.state === "recording") {
+                    mediaRecorder.stop();
+                }
+            }, 3000); // Processa blocos a cada 3s
+        } catch(e) {
+            console.error(e);
         }
-        return false;
     }
 
-    // Analisa a voz sem travar a leitura
-    function processarVozFluida(textoOuvido) {
-        if (indicePalavraAtual >= palavrasArray.length) return;
-
-        const palavrasOuvidas = textoOuvido.split(/\s+/).map(normalizar).filter(p => p.length > 0);
-
-        for (const palavraFalada of palavrasOuvidas) {
-            // Olha para a palavra atual e até 2 palavras à frente (caso ela pule conectivos)
-            for (let deslocamento = 0; deslocamento <= 2; deslocamento++) {
-                const idxAlvo = indicePalavraAtual + deslocamento;
-                if (idxAlvo < palavrasArray.length) {
-                    const palavraEsperada = normalizar(palavrasArray[idxAlvo]);
-                    
-                    if (saoSimilares(palavraFalada, palavraEsperada)) {
-                        // Marca todas as palavras até a identificada como lidas
-                        for (let i = indicePalavraAtual; i <= idxAlvo; i++) {
-                            avancarPalavra(i);
+    function processarTextoOuvido(texto) {
+        const ouvidas = texto.split(/\s+/).map(normalizar);
+        ouvidas.forEach(pFalada => {
+            for (let i = 0; i <= 2; i++) {
+                const idx = indicePalavraAtual + i;
+                if (idx < palavrasArray.length) {
+                    const pEsperada = normalizar(palavrasArray[idx]);
+                    if (pFalada === pEsperada || (pFalada.length > 3 && pEsperada.startsWith(pFalada.substring(0, 3)))) {
+                        for (let j = indicePalavraAtual; j <= idx; j++) {
+                            avancarPalavra(j);
                         }
                         break;
                     }
                 }
             }
-        }
+        });
     }
 
     function avancarPalavra(index) {
@@ -394,27 +388,7 @@
         }
     }
 
-    function alternarModo() {
-        usarVoz = !usarVoz;
-        const btnModo = document.getElementById('btnModo');
-        
-        if (usarVoz) {
-            btnModo.innerText = "🎙️ Voz: ON";
-            btnModo.style.backgroundColor = "#805ad5";
-            if (rodando && recognition) {
-                try { recognition.start(); } catch(e){}
-            }
-        } else {
-            btnModo.innerText = "👆 Modo Toque";
-            btnModo.style.backgroundColor = "#718096";
-            if (recognition) {
-                try { recognition.stop(); } catch(e){}
-            }
-            document.getElementById('statusMicrofone').innerText = "Modo Toque: Toque nas palavras enquanto sua filha lê em voz alta.";
-        }
-    }
-
-    function selecionarTexto(index) {
+    window.selecionarTexto = (index) => {
         reiniciarTudo();
         textoAtualIndex = index;
         
@@ -425,19 +399,19 @@
         });
 
         renderizarTexto();
-    }
+    };
 
     function atualizarContador() {
         document.getElementById('contadorPalavras').innerText = `Palavras lidas: ${indicePalavraAtual} / ${palavrasArray.length}`;
     }
 
-    function alternarLeitura() {
+    window.alternarLeitura = () => {
         if (rodando) {
             pausarLeitura();
         } else {
             iniciarLeitura();
         }
-    }
+    };
 
     function iniciarLeitura() {
         if (tempoRestante <= 0 || indicePalavraAtual >= palavrasArray.length) return;
@@ -445,15 +419,9 @@
         rodando = true;
         document.getElementById('btnIniciar').innerText = "⏸️ Pausar";
         document.getElementById('btnIniciar').style.backgroundColor = "#e53e3e";
+        document.getElementById('statusMicrofone').innerText = "🎙️ Ouvindo com IA...";
 
-        if (usarVoz) {
-            document.getElementById('statusMicrofone').innerText = "🎙️ Microfone ativo. Pode começar a ler!";
-            if (recognition) {
-                try { recognition.start(); } catch(e){}
-            }
-        } else {
-            document.getElementById('statusMicrofone').innerText = "👆 Toque na palavra correspondente no texto.";
-        }
+        gravarEProcessar();
 
         cronometroInterval = setInterval(() => {
             tempoRestante--;
@@ -472,8 +440,8 @@
         document.getElementById('btnIniciar').style.backgroundColor = "#48bb78";
         document.getElementById('statusMicrofone').innerText = "";
 
-        if (recognition) {
-            try { recognition.stop(); } catch(e){}
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+            mediaRecorder.stop();
         }
     }
 
@@ -491,14 +459,14 @@
 
         if (conseguiu) {
             msgDiv.className = "mensagem-resultado mensagem-sucesso";
-            msgDiv.innerHTML = "🎉 <b>PARABÉNS!</b><br>Você conseguiu ler as 100 palavras em 1 minuto! Você é sensacional! 🏆⭐";
+            msgDiv.innerHTML = "🎉 <b>PARABÉNS!</b><br>Você leu as 100 palavras em menos de 1 minuto! 🏆⭐";
         } else {
             msgDiv.className = "mensagem-resultado mensagem-falha";
-            msgDiv.innerHTML = `⏳ <b>O tempo acabou!</b><br>Você conseguiu ler <b>${indicePalavraAtual} palavras</b>.<br>Não desista, continue tentando! Você vai conseguir! 💪✨`;
+            msgDiv.innerHTML = `⏳ <b>O tempo acabou!</b><br>Você leu <b>${indicePalavraAtual} palavras</b>.<br>Continue treinando! 💪✨`;
         }
     }
 
-    function reiniciarTudo() {
+    window.reiniciarTudo = () => {
         pausarLeitura();
         tempoRestante = 60;
         indicePalavraAtual = 0;
@@ -508,10 +476,11 @@
         document.getElementById('mensagemResultado').style.display = "none";
         atualizarDisplayTempo();
         renderizarTexto();
-    }
+    };
 
     window.onload = () => {
         renderizarTexto();
+        initWhisper();
     };
 </script>
 
