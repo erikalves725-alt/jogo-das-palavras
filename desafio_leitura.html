@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Desafio de Leitura de Voz - 100 Palavras</title>
+    <title>Desafio de Leitura - 100 Palavras</title>
     <style>
         * {
             box-sizing: border-box;
@@ -101,9 +101,9 @@
             background-color: #48bb78;
             color: white;
             border: none;
-            padding: 10px 18px;
+            padding: 10px 16px;
             border-radius: 12px;
-            font-size: 1rem;
+            font-size: 0.95rem;
             font-weight: bold;
             cursor: pointer;
             box-shadow: 0 4px 0 #2f855a;
@@ -119,12 +119,17 @@
             box-shadow: 0 4px 0 #c05621;
         }
 
+        .btn-modo {
+            background-color: #805ad5;
+            box-shadow: 0 4px 0 #553c9a;
+        }
+
         .caixa-texto {
             background-color: #fffaf0;
             border: 2px solid #feebc8;
             border-radius: 15px;
             padding: 15px;
-            line-height: 1.9;
+            line-height: 2;
             font-size: 1.25rem;
             color: #2d3748;
             max-height: 48vh;
@@ -133,8 +138,8 @@
         }
 
         .palavra {
-            padding: 2px 4px;
-            border-radius: 5px;
+            padding: 2px 5px;
+            border-radius: 6px;
             display: inline-block;
             transition: all 0.2s;
             cursor: pointer;
@@ -146,16 +151,11 @@
             font-weight: bold;
         }
 
-        .palavra.incorreta {
-            background-color: #fed7d7;
-            color: #9b2c2c;
-            font-weight: bold;
-        }
-
         .palavra.atual {
-            outline: 3px solid #3182ce;
-            border-radius: 4px;
-            background-color: #ebf8ff;
+            background-color: #feebc8;
+            outline: 3px solid #ed8936;
+            border-radius: 6px;
+            font-weight: bold;
         }
 
         .contador-palavras {
@@ -205,12 +205,12 @@
 
 <div class="container">
     <header>
-        <h1>🎤 Desafio de Leitura por Voz</h1>
+        <h1>📖 Desafio de Leitura de 1 Minuto</h1>
         <div class="seletor-texto">
             <button class="btn-texto ativo" onclick="selecionarTexto(0)">Texto 1</button>
             <button class="btn-texto" onclick="selecionarTexto(1)">Texto 2</button>
             <button class="btn-texto" onclick="selecionarTexto(2)">Texto 3</button>
-            <button class="btn-texto" onclick="selecionarTexto(4)">Texto 4</button>
+            <button class="btn-texto" onclick="selecionarTexto(3)">Texto 4</button>
             <button class="btn-texto" onclick="selecionarTexto(4)">Texto 5</button>
         </div>
     </header>
@@ -220,7 +220,8 @@
             ⏱️ Tempo: <span class="tempo-display" id="tempoDisplay">01:00</span>
         </div>
         <div>
-            <button class="btn-acao" id="btnIniciar" onclick="alternarLeitura()">🎙️ Iniciar Leitura</button>
+            <button class="btn-acao" id="btnIniciar" onclick="alternarLeitura()">▶️ Iniciar Leitura</button>
+            <button class="btn-acao btn-modo" id="btnModo" onclick="alternarModo()">🎙️ Voz: ON</button>
             <button class="btn-acao btn-reiniciar" onclick="reiniciarTudo()">🔄 Reiniciar</button>
         </div>
     </div>
@@ -253,6 +254,7 @@
     let rodando = false;
     let indicePalavraAtual = 0;
     let palavrasArray = [];
+    let usarVoz = true;
 
     let recognition = null;
 
@@ -260,21 +262,22 @@
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
         recognition.continuous = true;
-        recognition.interimResults = true;
+        recognition.interimResults = false; // Apenas resultados consolidados para evitar acertos falsos
         recognition.lang = 'pt-BR';
 
         recognition.onresult = (event) => {
-            if (!rodando) return;
+            if (!rodando || !usarVoz) return;
 
-            let textoTranscrito = "";
             for (let i = event.resultIndex; i < event.results.length; i++) {
-                textoTranscrito += event.results[i][0].transcript + " ";
+                if (event.results[i].isFinal) {
+                    const transcricao = event.results[i][0].transcript;
+                    processarVozSequencial(transcricao);
+                }
             }
-            processarVoz(textoTranscrito);
         };
 
         recognition.onend = () => {
-            if (rodando) {
+            if (rodando && usarVoz) {
                 try { recognition.start(); } catch(e){}
             }
         };
@@ -292,8 +295,7 @@
             span.classList.add('palavra');
             span.innerText = palavraStr + " ";
             span.id = `palavra-${index}`;
-            // Permite clicar manualmente na palavra caso a voz falhe
-            span.onclick = () => marcarManualmente(index);
+            span.onclick = () => marcarPorToque(index);
             caixa.appendChild(span);
         });
 
@@ -305,20 +307,34 @@
         return termo.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toLowerCase().trim();
     }
 
-    function processarVoz(textoOuvido) {
+    // Processa a voz verificando RIGOROSAMENTE a sequência exata de palavras
+    function processarVozSequencial(textoOuvido) {
         if (indicePalavraAtual >= palavrasArray.length) return;
 
         const palavrasOuvidas = textoOuvido.split(/\s+/).map(normalizar).filter(p => p.length > 0);
-        const palavraEsperada = normalizar(palavrasArray[indicePalavraAtual]);
 
-        // Verifica se a palavra atual está presente nas últimas palavras faladas
-        const encontrada = palavrasOuvidas.some(p => p === palavraEsperada);
+        for (const palavraFalada of palavrasOuvidas) {
+            const palavraEsperada = normalizar(palavrasArray[indicePalavraAtual]);
+            const proximaPalavraEsperada = (indicePalavraAtual + 1 < palavrasArray.length) ? normalizar(palavrasArray[indicePalavraAtual + 1]) : null;
 
-        if (encontrada) {
-            const el = document.getElementById(`palavra-${indicePalavraAtual}`);
-            el.classList.remove('atual', 'incorreta');
-            el.classList.add('correta');
-            indicePalavraAtual++;
+            // Só aceita se for exatamente a palavra esperada atual ou a imediatamente posterior
+            if (palavraFalada === palavraEsperada) {
+                avancarPalavra(indicePalavraAtual);
+            } else if (proximaPalavraEsperada && palavraFalada === proximaPalavraEsperada) {
+                avancarPalavra(indicePalavraAtual);
+                avancarPalavra(indicePalavraAtual);
+            }
+        }
+    }
+
+    function avancarPalavra(index) {
+        if (index < palavrasArray.length) {
+            const el = document.getElementById(`palavra-${index}`);
+            if (el) {
+                el.classList.remove('atual');
+                el.classList.add('correta');
+            }
+            indicePalavraAtual = index + 1;
             atualizarDestaque();
             atualizarContador();
 
@@ -328,15 +344,18 @@
         }
     }
 
-    function marcarManualmente(index) {
+    function marcarPorToque(index) {
         if (!rodando && tempoRestante === 60) {
             iniciarLeitura();
         }
 
+        // Marca como lida até a palavra clicada
         for (let i = 0; i <= index; i++) {
             const el = document.getElementById(`palavra-${i}`);
-            el.classList.remove('atual', 'incorreta');
-            el.classList.add('correta');
+            if (el) {
+                el.classList.remove('atual');
+                el.classList.add('correta');
+            }
         }
 
         indicePalavraAtual = index + 1;
@@ -356,6 +375,26 @@
                 el.classList.add('atual');
                 el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
+        }
+    }
+
+    function alternarModo() {
+        usarVoz = !usarVoz;
+        const btnModo = document.getElementById('btnModo');
+        
+        if (usarVoz) {
+            btnModo.innerText = "🎙️ Voz: ON";
+            btnModo.style.backgroundColor = "#805ad5";
+            if (rodando && recognition) {
+                try { recognition.start(); } catch(e){}
+            }
+        } else {
+            btnModo.innerText = "👆 Modo Toque";
+            btnModo.style.backgroundColor = "#718096";
+            if (recognition) {
+                try { recognition.stop(); } catch(e){}
+            }
+            document.getElementById('statusMicrofone').innerText = "Modo Toque: Toque nas palavras enquanto sua filha lê em voz alta.";
         }
     }
 
@@ -390,10 +429,14 @@
         rodando = true;
         document.getElementById('btnIniciar').innerText = "⏸️ Pausar";
         document.getElementById('btnIniciar').style.backgroundColor = "#e53e3e";
-        document.getElementById('statusMicrofone').innerText = "🎙️ Microfone ativado! Lendo e ouvindo...";
 
-        if (recognition) {
-            try { recognition.start(); } catch(e){}
+        if (usarVoz) {
+            document.getElementById('statusMicrofone').innerText = "🎙️ Microfone ativo. Pode começar a ler!";
+            if (recognition) {
+                try { recognition.start(); } catch(e){}
+            }
+        } else {
+            document.getElementById('statusMicrofone').innerText = "👆 Toque na palavra correspondente no texto.";
         }
 
         cronometroInterval = setInterval(() => {
@@ -409,7 +452,7 @@
     function pausarLeitura() {
         rodando = false;
         clearInterval(cronometroInterval);
-        document.getElementById('btnIniciar').innerText = "🎙️ Continuar Leitura";
+        document.getElementById('btnIniciar').innerText = "▶️ Continuar";
         document.getElementById('btnIniciar').style.backgroundColor = "#48bb78";
         document.getElementById('statusMicrofone').innerText = "";
 
@@ -435,7 +478,7 @@
             msgDiv.innerHTML = "🎉 <b>PARABÉNS!</b><br>Você conseguiu ler as 100 palavras em 1 minuto! Você é sensacional! 🏆⭐";
         } else {
             msgDiv.className = "mensagem-resultado mensagem-falha";
-            msgDiv.innerHTML = `⏳ <b>O tempo acabou, mas não desista!</b><br>Você leu <b>${indicePalavraAtual} palavras</b>.<br>Continue tentando, você vai conseguir! 💪✨`;
+            msgDiv.innerHTML = `⏳ <b>O tempo acabou!</b><br>Você conseguiu ler <b>${indicePalavraAtual} palavras</b>.<br>Não desista, continue tentando! Você vai conseguir! 💪✨`;
         }
     }
 
@@ -444,7 +487,7 @@
         tempoRestante = 60;
         indicePalavraAtual = 0;
         document.getElementById('btnIniciar').disabled = false;
-        document.getElementById('btnIniciar').innerText = "🎙️ Iniciar Leitura";
+        document.getElementById('btnIniciar').innerText = "▶️ Iniciar Leitura";
         document.getElementById('btnIniciar').style.backgroundColor = "#48bb78";
         document.getElementById('mensagemResultado').style.display = "none";
         atualizarDisplayTempo();
