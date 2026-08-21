@@ -227,7 +227,7 @@
     <div class="mensagem-resultado" id="mensagemResultado"></div>
 
     <div class="creditos">
-        Desenvolvido para incentivar a leitura infantil Erik Alves.
+        Desenvolvido para incentivar a leitura infantil ❤️
     </div>
 </div>
 
@@ -253,7 +253,35 @@
     let mediaRecorder = null;
     let audioChunks = [];
 
-    // Inicializa o modelo Whisper
+    // Função para emitir som de alarme ao terminar o tempo
+    function tocarSomFimDoTempo() {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const audioCtx = new AudioContext();
+            
+            // Emite 3 bipes sonoros curtos
+            const temposBip = [0, 0.25, 0.5];
+            temposBip.forEach(atTime => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(520, audioCtx.currentTime + atTime); // Frequência do bipe
+
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime + atTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + atTime + 0.18);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(audioCtx.currentTime + atTime);
+                osc.stop(audioCtx.currentTime + atTime + 0.18);
+            });
+        } catch (e) {
+            console.error("Erro ao tocar áudio:", e);
+        }
+    }
+
     async function initWhisper() {
         try {
             document.getElementById('statusMicrofone').innerText = "⏳ Carregando modelo Whisper da OpenAI (aguarde)...";
@@ -306,7 +334,7 @@
                         processarTextoOuvido(output.text);
                     }
                 }
-                if (rodando) gravarEProcessar(); // Ciclo contínuo
+                if (rodando) gravarEProcessar();
             };
 
             mediaRecorder.start();
@@ -314,7 +342,7 @@
                 if (mediaRecorder && mediaRecorder.state === "recording") {
                     mediaRecorder.stop();
                 }
-            }, 3000); // Processa blocos a cada 3s
+            }, 3000);
         } catch(e) {
             console.error(e);
         }
@@ -461,6 +489,7 @@
             msgDiv.className = "mensagem-resultado mensagem-sucesso";
             msgDiv.innerHTML = "🎉 <b>PARABÉNS!</b><br>Você leu as 100 palavras em menos de 1 minuto! 🏆⭐";
         } else {
+            tocarSomFimDoTempo(); // Dispara o som de alarme ao esgotar o tempo
             msgDiv.className = "mensagem-resultado mensagem-falha";
             msgDiv.innerHTML = `⏳ <b>O tempo acabou!</b><br>Você leu <b>${indicePalavraAtual} palavras</b>.<br>Continue treinando! 💪✨`;
         }
