@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Desafio de Leitura de Voz - 100 Palavras</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', 'Arial', sans-serif;
+            user-select: none;
+        }
+
+        body {
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            max-width: 800px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        header {
+            text-align: center;
+        }
+
+        h1 {
+            color: #2b6cb0;
+            margin: 0 0 5px 0;
+            font-size: 1.5rem;
+        }
+
+        .seletor-texto {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .btn-texto {
+            background-color: #e2e8f0;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-weight: bold;
+            color: #4a5568;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .btn-texto.ativo {
+            background-color: #3182ce;
+            color: white;
+        }
+
+        .painel-controle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #edf2f7;
+            padding: 10px 15px;
+            border-radius: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .cronometro-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .tempo-display {
+            font-size: 1.8rem;
+            color: #e53e3e;
+            background: white;
+            padding: 2px 12px;
+            border-radius: 8px;
+            border: 2px solid #feb2b2;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        .btn-acao {
+            background-color: #48bb78;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #2f855a;
+        }
+
+        .btn-acao:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #2f855a;
+        }
+
+        .btn-reiniciar {
+            background-color: #ed8936;
+            box-shadow: 0 4px 0 #c05621;
+        }
+
+        .caixa-texto {
+            background-color: #fffaf0;
+            border: 2px solid #feebc8;
+            border-radius: 15px;
+            padding: 15px;
+            line-height: 1.9;
+            font-size: 1.25rem;
+            color: #2d3748;
+            max-height: 48vh;
+            overflow-y: auto;
+            text-align: justify;
+        }
+
+        .palavra {
+            padding: 2px 4px;
+            border-radius: 5px;
+            display: inline-block;
+            transition: all 0.2s;
+        }
+
+        /* Cores do status de leitura */
+        .palavra.correta {
+            background-color: #c6f6d5;
+            color: #22543d;
+            font-weight: bold;
+        }
+
+        .palavra.incorreta {
+            background-color: #fed7d7;
+            color: #9b2c2c;
+            font-weight: bold;
+        }
+
+        .palavra.atual {
+            outline: 2px dashed #3182ce;
+            border-radius: 4px;
+        }
+
+        .contador-palavras {
+            text-align: right;
+            font-size: 0.9rem;
+            color: #718096;
+            font-weight: bold;
+        }
+
+        .mensagem-resultado {
+            padding: 12px;
+            border-radius: 12px;
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: bold;
+            display: none;
+        }
+
+        .mensagem-sucesso {
+            background-color: #c6f6d5;
+            color: #22543d;
+            border: 2px solid #9ae6b4;
+        }
+
+        .mensagem-falha {
+            background-color: #feebc8;
+            color: #744210;
+            border: 2px solid #fbd38d;
+        }
+
+        .status-microfone {
+            font-size: 0.85rem;
+            color: #e53e3e;
+            font-weight: bold;
+            text-align: center;
+            min-height: 20px;
+        }
+
+        .creditos {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #a0aec0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>🎤 Desafio de Leitura por Voz</h1>
+        <div class="seletor-texto">
+            <button class="btn-texto ativo" onclick="selecionarTexto(0)">Texto 1</button>
+            <button class="btn-texto" onclick="selecionarTexto(1)">Texto 2</button>
+            <button class="btn-texto" onclick="selecionarTexto(2)">Texto 3</button>
+            <button class="btn-texto" onclick="selecionarTexto(3)">Texto 4</button>
+            <button class="btn-texto" onclick="selecionarTexto(4)">Texto 5</button>
+        </div>
+    </header>
+
+    <div class="painel-controle">
+        <div class="cronometro-box">
+            ⏱️ Tempo: <span class="tempo-display" id="tempoDisplay">01:00</span>
+        </div>
+        <div>
+            <button class="btn-acao" id="btnIniciar" onclick="alternarLeitura()">🎙️ Iniciar Leitura</button>
+            <button class="btn-acao btn-reiniciar" onclick="reiniciarTudo()">🔄 Reiniciar</button>
+        </div>
+    </div>
+
+    <div class="status-microfone" id="statusMicrofone"></div>
+
+    <div class="contador-palavras" id="contadorPalavras">Palavras lidas: 0 / 100</div>
+
+    <div class="caixa-texto" id="caixaTexto"></div>
+
+    <div class="mensagem-resultado" id="mensagemResultado"></div>
+
+    <div class="creditos">
+        Desenvolvido para incentivar a leitura infantil ❤️
+    </div>
+</div>
+
+<script>
+    const textos = [
+        "Era uma vez um cachorrinho muito esperto chamado Bob. Bob adorava correr pelo parque todas as manhãs. Ele gostava de perseguir passarinhos e brincar com as folhas secas que caíam das árvores. Um dia Bob encontrou uma bola vermelha escondida no arbusto. Ele ficou muito feliz e levou a bola na boca até a sua casa. O seu dono vendo aquela alegria deu um delicioso osso para ele. Bob comeu o osso e depois dormiu bem quentinho na sua cama macia. Foi um dia incrível para o pequeno cãozinho que sonhou com novas aventuras divertidas no parque.",
+        "No céu azul brilhava uma pequena estrela chamada Luma. Luma era muito curiosa e gostava de olhar para a Terra durante a noite. Ela via as luzes das casas e as crianças dormindo em suas camas. Um dia Luma pediu permissão para a Lua para brilhar um pouco mais forte. A Lua sorriu e deixou. Luma piscou bem alto e iluminou o caminho de um gatinho que estava perdido na rua. O gatinho encontrou a sua casa e miou de felicidade. Luma ficou orgulhosa de ter ajudado o seu novo amigo e continuou a brilhar alegremente no céu.",
+        "Sofia adorava explorar o quintal da casa da sua avó. Lançando um olhar atento encontrou uma pequena porta de madeira atrás das plantas. Curiosa Sofia abriu a porta e descobriu um jardim secreto cheio de flores coloridas. Haviam borboletas amarelas voando perto de uma grande fonte de água limpa. Um passarinho verde pousou no seu ombro e cantou uma linda melodia. Sofia sentou na grama macia e ficou ouvindo o som da natureza por muito tempo. Ela sabia que aquele lugar especial seria o seu cantinho favorito para ler livros e sonhar com grandes histórias mágicas.",
+        "Téo ganhou um brinquedo muito diferente no seu aniversário. Era um robô prateado que conseguia andar e acender luzes coloridas nos olhos. Téo deu o nome de Bip para o robô. Todos os dias depois de fazer a lição de casa Téo brincava com Bip no seu quarto. Eles construíam grandes castelos usando blocos de madeira e naves espaciais de papelão. Bip emitia sons engraçados que faziam o menino rir bastante. A mãe de Téo chamou para o lanche e ele guardou tudo com cuidado. Ter um robô amigo deixava os seus dias muito mais alegres e divertidos.",
+        "No domingo ensolarado Lucas foi passear de barco com seu pai no lago. O barco deslizava suavemente pela água calma enquanto os peixes nadavam em volta. Lucas usava um colete salvas-vidas azul e segurava uma vara de pescar de brinquedo. De repente eles viram uma família de patos nadando em fileira atrás da mamãe pata. O pai de Lucas tirou uma foto bonita para guardar de lembrança daquele momento. Eles comeram sanduíches saborosos e beberam suco de laranja bem gelado. Voltar para casa no final do dia trouxe uma sensação boa de dever cumprido e muita felicidade."
+    ];
+
+    let textoAtualIndex = 0;
+    let tempoRestante = 60;
+    let cronometroInterval = null;
+    let rodando = false;
+    let indicePalavraAtual = 0;
+    let palavrasArray = [];
+    let acertos = 0;
+
+    let recognition = null;
+
+    // Inicialização do Reconhecimento de Voz
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'pt-BR';
+
+        recognition.onresult = (event) => {
+            if (!rodando) return;
+
+            let resultadoTransf = "";
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                resultadoTransf += event.results[i][0].transcript;
+            }
+            processarVoz(resultadoTransf.trim().toLowerCase());
+        };
+
+        recognition.onerror = (event) => {
+            console.error("Erro no microfone: ", event.error);
+        };
+
+        recognition.onend = () => {
+            if (rodando) recognition.start(); // Mantém o microfone escutando
+        };
+    } else {
+        alert("O seu navegador não suporta reconhecimento de voz. Recomenda-se o uso do Google Chrome.");
+    }
+
+    function renderizarTexto() {
+        const caixa = document.getElementById('caixaTexto');
+        caixa.innerHTML = "";
+        
+        const textoBruto = textos[textoAtualIndex];
+        palavrasArray = textoBruto.split(" ");
+
+        palavrasArray.forEach((palavraStr, index) => {
+            const span = document.createElement('span');
+            span.classList.add('palavra');
+            span.innerText = palavraStr + " ";
+            span.id = `palavra-${index}`;
+            caixa.appendChild(span);
+        });
+
+        atualizarDestaquePalavraAtual();
+        atualizarContador();
+    }
+
+    function limparPontuacao(termo) {
+        return termo.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toLowerCase();
+    }
+
+    function processarVoz(textoOuvido) {
+        if (indicePalavraAtual >= palavrasArray.length) return;
+
+        const palavrasFaladas = textoOuvido.split(" ");
+        const ultimaPalavraFalada = limparPontuacao(palavrasFaladas[palavrasFaladas.length - 1]);
+        const palavraEsperada = limparPontuacao(palavrasArray[indicePalavraAtual]);
+
+        const el = document.getElementById(`palavra-${indicePalavraAtual}`);
+
+        if (ultimaPalavraFalada === palavraEsperada) {
+            el.classList.remove('atual', 'incorreta');
+            el.classList.add('correta');
+            acertos++;
+            indicePalavraAtual++;
+        } else if (palavrasFaladas.length > 1) {
+            // Se errou ou falou algo diferente
+            el.classList.remove('atual');
+            el.classList.add('incorreta');
+            indicePalavraAtual++;
+        }
+
+        atualizarDestaquePalavraAtual();
+        atualizarContador();
+
+        if (indicePalavraAtual >= palavrasArray.length) {
+            finalizarLeitura(acertos >= (palavrasArray.length * 0.8));
+        }
+    }
+
+    function atualizarDestaquePalavraAtual() {
+        document.querySelectorAll('.palavra').forEach(p => p.classList.remove('atual'));
+        if (indicePalavraAtual < palavrasArray.length) {
+            const el = document.getElementById(`palavra-${indicePalavraAtual}`);
+            if (el) {
+                el.classList.add('atual');
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+    }
+
+    function selecionarTexto(index) {
+        reiniciarTudo();
+        textoAtualIndex = index;
+        
+        const botoes = document.querySelectorAll('.btn-texto');
+        botoes.forEach((btn, i) => {
+            if (i === index) btn.classList.add('ativo');
+            else btn.classList.remove('ativo');
+        });
+
+        renderizarTexto();
+    }
+
+    function atualizarContador() {
+        document.getElementById('contadorPalavras').innerText = `Palavras lidas: ${indicePalavraAtual} / ${palavrasArray.length}`;
+    }
+
+    function alternarLeitura() {
+        if (rodando) {
+            pausarLeitura();
+        } else {
+            iniciarLeitura();
+        }
+    }
+
+    function iniciarLeitura() {
+        if (tempoRestante <= 0 || indicePalavraAtual >= palavrasArray.length) return;
+        
+        rodando = true;
+        document.getElementById('btnIniciar').innerText = "⏸️ Pausar";
+        document.getElementById('btnIniciar').style.backgroundColor = "#e53e3e";
+        document.getElementById('statusMicrofone').innerText = "🎙️ Microfone ativado. Pode começar a ler!";
+
+        if (recognition) {
+            try { recognition.start(); } catch(e){}
+        }
+
+        cronometroInterval = setInterval(() => {
+            tempoRestante--;
+            atualizarDisplayTempo();
+
+            if (tempoRestante <= 0) {
+                finalizarLeitura(false);
+            }
+        }, 1000);
+    }
+
+    function pausarLeitura() {
+        rodando = false;
+        clearInterval(cronometroInterval);
+        document.getElementById('btnIniciar').innerText = "🎙️ Continuar Leitura";
+        document.getElementById('btnIniciar').style.backgroundColor = "#48bb78";
+        document.getElementById('statusMicrofone').innerText = "";
+
+        if (recognition) {
+            try { recognition.stop(); } catch(e){}
+        }
+    }
+
+    function atualizarDisplayTempo() {
+        const seg = tempoRestante < 10 ? `0${tempoRestante}` : tempoRestante;
+        document.getElementById('tempoDisplay').innerText = `00:${seg}`;
+    }
+
+    function finalizarLeitura(conseguiu) {
+        pausarLeitura();
+        document.getElementById('btnIniciar').disabled = true;
+
+        const msgDiv = document.getElementById('mensagemResultado');
+        msgDiv.style.display = "block";
+
+        if (conseguiu) {
+            msgDiv.className = "mensagem-resultado mensagem-sucesso";
+            msgDiv.innerHTML = "🎉 <b>PARABÉNS!</b><br>Você conseguiu ler o texto em 1 minuto! Você é sensacional! 🏆⭐";
+        } else {
+            msgDiv.className = "mensagem-resultado mensagem-falha";
+            msgDiv.innerHTML = `⏳ <b>O tempo acabou, mas não desista!</b><br>Você leu <b>${indicePalavraAtual} palavras</b>.<br>Continue tentando, você vai conseguir! 💪✨`;
+        }
+    }
+
+    function reiniciarTudo() {
+        pausarLeitura();
+        tempoRestante = 60;
+        indicePalavraAtual = 0;
+        acertos = 0;
+        document.getElementById('btnIniciar').disabled = false;
+        document.getElementById('btnIniciar').innerText = "🎙️ Iniciar Leitura";
+        document.getElementById('btnIniciar').style.backgroundColor = "#48bb78";
+        document.getElementById('mensagemResultado').style.display = "none";
+        atualizarDisplayTempo();
+        renderizarTexto();
+    }
+
+    window.onload = () => {
+        renderizarTexto();
+    };
+</script>
+
+</body>
+</html>
