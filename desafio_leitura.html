@@ -137,9 +137,9 @@
             border-radius: 5px;
             display: inline-block;
             transition: all 0.2s;
+            cursor: pointer;
         }
 
-        /* Cores do status de leitura */
         .palavra.correta {
             background-color: #c6f6d5;
             color: #22543d;
@@ -153,8 +153,9 @@
         }
 
         .palavra.atual {
-            outline: 2px dashed #3182ce;
+            outline: 3px solid #3182ce;
             border-radius: 4px;
+            background-color: #ebf8ff;
         }
 
         .contador-palavras {
@@ -187,7 +188,7 @@
 
         .status-microfone {
             font-size: 0.85rem;
-            color: #e53e3e;
+            color: #2b6cb0;
             font-weight: bold;
             text-align: center;
             min-height: 20px;
@@ -209,7 +210,7 @@
             <button class="btn-texto ativo" onclick="selecionarTexto(0)">Texto 1</button>
             <button class="btn-texto" onclick="selecionarTexto(1)">Texto 2</button>
             <button class="btn-texto" onclick="selecionarTexto(2)">Texto 3</button>
-            <button class="btn-texto" onclick="selecionarTexto(3)">Texto 4</button>
+            <button class="btn-texto" onclick="selecionarTexto(4)">Texto 4</button>
             <button class="btn-texto" onclick="selecionarTexto(4)">Texto 5</button>
         </div>
     </header>
@@ -240,7 +241,7 @@
 <script>
     const textos = [
         "Era uma vez um cachorrinho muito esperto chamado Bob. Bob adorava correr pelo parque todas as manhãs. Ele gostava de perseguir passarinhos e brincar com as folhas secas que caíam das árvores. Um dia Bob encontrou uma bola vermelha escondida no arbusto. Ele ficou muito feliz e levou a bola na boca até a sua casa. O seu dono vendo aquela alegria deu um delicioso osso para ele. Bob comeu o osso e depois dormiu bem quentinho na sua cama macia. Foi um dia incrível para o pequeno cãozinho que sonhou com novas aventuras divertidas no parque.",
-        "No céu azul brilhava uma pequena estrela chamada Luma. Luma era muito curiosa e gostava de olhar para a Terra durante a noite. Ela via as luzes das casas e as crianças dormindo em suas camas. Um dia Luma pediu permissão para a Lua para brilhar um pouco mais forte. A Lua sorriu e deixou. Luma piscou bem alto e iluminou o caminho de um gatinho que estava perdido na rua. O gatinho encontrou a sua casa e miou de felicidade. Luma ficou orgulhosa de ter ajudado o seu novo amigo e continuou a brilhar alegremente no céu.",
+        "No céu azul brilhava uma pequena estrela chamada Luma. Luma era muito curiosa e gostava de olhar para a Terra durante a noite. Ela via as luzes das casas e as crianças dormindo em suas camas. Um dia Luma pediu permissão para a Lua para brilhar um pouco mais forte. A Lua sorriu e deixou. Luma piscou bem alto e iluminou o caminho de um gatinho que estava perdido na rua. O gatinho encontrou a sua casa e miou de felicidade. Luma ficou orgulhos de ter ajudado o seu novo amigo e continuou a brilhar alegremente no céu.",
         "Sofia adorava explorar o quintal da casa da sua avó. Lançando um olhar atento encontrou uma pequena porta de madeira atrás das plantas. Curiosa Sofia abriu a porta e descobriu um jardim secreto cheio de flores coloridas. Haviam borboletas amarelas voando perto de uma grande fonte de água limpa. Um passarinho verde pousou no seu ombro e cantou uma linda melodia. Sofia sentou na grama macia e ficou ouvindo o som da natureza por muito tempo. Ela sabia que aquele lugar especial seria o seu cantinho favorito para ler livros e sonhar com grandes histórias mágicas.",
         "Téo ganhou um brinquedo muito diferente no seu aniversário. Era um robô prateado que conseguia andar e acender luzes coloridas nos olhos. Téo deu o nome de Bip para o robô. Todos os dias depois de fazer a lição de casa Téo brincava com Bip no seu quarto. Eles construíam grandes castelos usando blocos de madeira e naves espaciais de papelão. Bip emitia sons engraçados que faziam o menino rir bastante. A mãe de Téo chamou para o lanche e ele guardou tudo com cuidado. Ter um robô amigo deixava os seus dias muito mais alegres e divertidos.",
         "No domingo ensolarado Lucas foi passear de barco com seu pai no lago. O barco deslizava suavemente pela água calma enquanto os peixes nadavam em volta. Lucas usava um colete salvas-vidas azul e segurava uma vara de pescar de brinquedo. De repente eles viram uma família de patos nadando em fileira atrás da mamãe pata. O pai de Lucas tirou uma foto bonita para guardar de lembrança daquele momento. Eles comeram sanduíches saborosos e beberam suco de laranja bem gelado. Voltar para casa no final do dia trouxe uma sensação boa de dever cumprido e muita felicidade."
@@ -252,11 +253,9 @@
     let rodando = false;
     let indicePalavraAtual = 0;
     let palavrasArray = [];
-    let acertos = 0;
 
     let recognition = null;
 
-    // Inicialização do Reconhecimento de Voz
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
@@ -267,22 +266,18 @@
         recognition.onresult = (event) => {
             if (!rodando) return;
 
-            let resultadoTransf = "";
+            let textoTranscrito = "";
             for (let i = event.resultIndex; i < event.results.length; i++) {
-                resultadoTransf += event.results[i][0].transcript;
+                textoTranscrito += event.results[i][0].transcript + " ";
             }
-            processarVoz(resultadoTransf.trim().toLowerCase());
-        };
-
-        recognition.onerror = (event) => {
-            console.error("Erro no microfone: ", event.error);
+            processarVoz(textoTranscrito);
         };
 
         recognition.onend = () => {
-            if (rodando) recognition.start(); // Mantém o microfone escutando
+            if (rodando) {
+                try { recognition.start(); } catch(e){}
+            }
         };
-    } else {
-        alert("O seu navegador não suporta reconhecimento de voz. Recomenda-se o uso do Google Chrome.");
     }
 
     function renderizarTexto() {
@@ -297,47 +292,63 @@
             span.classList.add('palavra');
             span.innerText = palavraStr + " ";
             span.id = `palavra-${index}`;
+            // Permite clicar manualmente na palavra caso a voz falhe
+            span.onclick = () => marcarManualmente(index);
             caixa.appendChild(span);
         });
 
-        atualizarDestaquePalavraAtual();
+        atualizarDestaque();
         atualizarContador();
     }
 
-    function limparPontuacao(termo) {
-        return termo.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toLowerCase();
+    function normalizar(termo) {
+        return termo.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toLowerCase().trim();
     }
 
     function processarVoz(textoOuvido) {
         if (indicePalavraAtual >= palavrasArray.length) return;
 
-        const palavrasFaladas = textoOuvido.split(" ");
-        const ultimaPalavraFalada = limparPontuacao(palavrasFaladas[palavrasFaladas.length - 1]);
-        const palavraEsperada = limparPontuacao(palavrasArray[indicePalavraAtual]);
+        const palavrasOuvidas = textoOuvido.split(/\s+/).map(normalizar).filter(p => p.length > 0);
+        const palavraEsperada = normalizar(palavrasArray[indicePalavraAtual]);
 
-        const el = document.getElementById(`palavra-${indicePalavraAtual}`);
+        // Verifica se a palavra atual está presente nas últimas palavras faladas
+        const encontrada = palavrasOuvidas.some(p => p === palavraEsperada);
 
-        if (ultimaPalavraFalada === palavraEsperada) {
+        if (encontrada) {
+            const el = document.getElementById(`palavra-${indicePalavraAtual}`);
             el.classList.remove('atual', 'incorreta');
             el.classList.add('correta');
-            acertos++;
             indicePalavraAtual++;
-        } else if (palavrasFaladas.length > 1) {
-            // Se errou ou falou algo diferente
-            el.classList.remove('atual');
-            el.classList.add('incorreta');
-            indicePalavraAtual++;
-        }
+            atualizarDestaque();
+            atualizarContador();
 
-        atualizarDestaquePalavraAtual();
-        atualizarContador();
-
-        if (indicePalavraAtual >= palavrasArray.length) {
-            finalizarLeitura(acertos >= (palavrasArray.length * 0.8));
+            if (indicePalavraAtual >= palavrasArray.length) {
+                finalizarLeitura(true);
+            }
         }
     }
 
-    function atualizarDestaquePalavraAtual() {
+    function marcarManualmente(index) {
+        if (!rodando && tempoRestante === 60) {
+            iniciarLeitura();
+        }
+
+        for (let i = 0; i <= index; i++) {
+            const el = document.getElementById(`palavra-${i}`);
+            el.classList.remove('atual', 'incorreta');
+            el.classList.add('correta');
+        }
+
+        indicePalavraAtual = index + 1;
+        atualizarDestaque();
+        atualizarContador();
+
+        if (indicePalavraAtual >= palavrasArray.length) {
+            finalizarLeitura(true);
+        }
+    }
+
+    function atualizarDestaque() {
         document.querySelectorAll('.palavra').forEach(p => p.classList.remove('atual'));
         if (indicePalavraAtual < palavrasArray.length) {
             const el = document.getElementById(`palavra-${indicePalavraAtual}`);
@@ -379,7 +390,7 @@
         rodando = true;
         document.getElementById('btnIniciar').innerText = "⏸️ Pausar";
         document.getElementById('btnIniciar').style.backgroundColor = "#e53e3e";
-        document.getElementById('statusMicrofone').innerText = "🎙️ Microfone ativado. Pode começar a ler!";
+        document.getElementById('statusMicrofone').innerText = "🎙️ Microfone ativado! Lendo e ouvindo...";
 
         if (recognition) {
             try { recognition.start(); } catch(e){}
@@ -421,7 +432,7 @@
 
         if (conseguiu) {
             msgDiv.className = "mensagem-resultado mensagem-sucesso";
-            msgDiv.innerHTML = "🎉 <b>PARABÉNS!</b><br>Você conseguiu ler o texto em 1 minuto! Você é sensacional! 🏆⭐";
+            msgDiv.innerHTML = "🎉 <b>PARABÉNS!</b><br>Você conseguiu ler as 100 palavras em 1 minuto! Você é sensacional! 🏆⭐";
         } else {
             msgDiv.className = "mensagem-resultado mensagem-falha";
             msgDiv.innerHTML = `⏳ <b>O tempo acabou, mas não desista!</b><br>Você leu <b>${indicePalavraAtual} palavras</b>.<br>Continue tentando, você vai conseguir! 💪✨`;
@@ -432,7 +443,6 @@
         pausarLeitura();
         tempoRestante = 60;
         indicePalavraAtual = 0;
-        acertos = 0;
         document.getElementById('btnIniciar').disabled = false;
         document.getElementById('btnIniciar').innerText = "🎙️ Iniciar Leitura";
         document.getElementById('btnIniciar').style.backgroundColor = "#48bb78";
