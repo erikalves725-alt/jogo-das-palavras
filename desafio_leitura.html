@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Desafio de Leitura - 100 Palavras</title>
+    <title>Desafio de Leitura de 1 Minuto</title>
     <style>
         * {
             box-sizing: border-box;
@@ -129,7 +129,7 @@
             border: 2px solid #feebc8;
             border-radius: 15px;
             padding: 15px;
-            line-height: 2;
+            line-height: 2.1;
             font-size: 1.25rem;
             color: #2d3748;
             max-height: 48vh;
@@ -262,18 +262,17 @@
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
         recognition.continuous = true;
-        recognition.interimResults = false; // Apenas resultados consolidados para evitar acertos falsos
+        recognition.interimResults = true; // Captura falas intermediárias em tempo real
         recognition.lang = 'pt-BR';
 
         recognition.onresult = (event) => {
             if (!rodando || !usarVoz) return;
 
+            let transcricaoTotal = "";
             for (let i = event.resultIndex; i < event.results.length; i++) {
-                if (event.results[i].isFinal) {
-                    const transcricao = event.results[i][0].transcript;
-                    processarVozSequencial(transcricao);
-                }
+                transcricaoTotal += event.results[i][0].transcript + " ";
             }
+            processarVozFluida(transcricaoTotal);
         };
 
         recognition.onend = () => {
@@ -307,22 +306,40 @@
         return termo.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toLowerCase().trim();
     }
 
-    // Processa a voz verificando RIGOROSAMENTE a sequência exata de palavras
-    function processarVozSequencial(textoOuvido) {
+    // Compara similaridade básica de duas palavras
+    function saoSimilares(p1, p2) {
+        if (!p1 || !p2) return false;
+        if (p1 === p2) return true;
+        // Se a palavra tiver mais de 3 letras e uma contiver a outra
+        if (p1.length > 3 && p2.length > 3) {
+            if (p1.startsWith(p2.substring(0, 3)) || p2.startsWith(p1.substring(0, 3))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Analisa a voz sem travar a leitura
+    function processarVozFluida(textoOuvido) {
         if (indicePalavraAtual >= palavrasArray.length) return;
 
         const palavrasOuvidas = textoOuvido.split(/\s+/).map(normalizar).filter(p => p.length > 0);
 
         for (const palavraFalada of palavrasOuvidas) {
-            const palavraEsperada = normalizar(palavrasArray[indicePalavraAtual]);
-            const proximaPalavraEsperada = (indicePalavraAtual + 1 < palavrasArray.length) ? normalizar(palavrasArray[indicePalavraAtual + 1]) : null;
-
-            // Só aceita se for exatamente a palavra esperada atual ou a imediatamente posterior
-            if (palavraFalada === palavraEsperada) {
-                avancarPalavra(indicePalavraAtual);
-            } else if (proximaPalavraEsperada && palavraFalada === proximaPalavraEsperada) {
-                avancarPalavra(indicePalavraAtual);
-                avancarPalavra(indicePalavraAtual);
+            // Olha para a palavra atual e até 2 palavras à frente (caso ela pule conectivos)
+            for (let deslocamento = 0; deslocamento <= 2; deslocamento++) {
+                const idxAlvo = indicePalavraAtual + deslocamento;
+                if (idxAlvo < palavrasArray.length) {
+                    const palavraEsperada = normalizar(palavrasArray[idxAlvo]);
+                    
+                    if (saoSimilares(palavraFalada, palavraEsperada)) {
+                        // Marca todas as palavras até a identificada como lidas
+                        for (let i = indicePalavraAtual; i <= idxAlvo; i++) {
+                            avancarPalavra(i);
+                        }
+                        break;
+                    }
+                }
             }
         }
     }
@@ -349,7 +366,6 @@
             iniciarLeitura();
         }
 
-        // Marca como lida até a palavra clicada
         for (let i = 0; i <= index; i++) {
             const el = document.getElementById(`palavra-${i}`);
             if (el) {
