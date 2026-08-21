@@ -134,7 +134,7 @@
             padding: 2px 5px;
             border-radius: 6px;
             display: inline-block;
-            transition: all 0.2s;
+            transition: all 0.15s;
             cursor: pointer;
         }
 
@@ -198,7 +198,7 @@
 
 <div class="container">
     <header>
-        <h1>🎤 Desafio de Leitura (AI Whisper)</h1>
+        <h1>🎤 Desafio de Leitura de 1 Minuto</h1>
         <div class="seletor-texto">
             <button class="btn-texto ativo" onclick="selecionarTexto(0)">Texto 1</button>
             <button class="btn-texto" onclick="selecionarTexto(1)">Texto 2</button>
@@ -218,7 +218,7 @@
         </div>
     </div>
 
-    <div class="status-microfone" id="statusMicrofone">Carregando IA de voz...</div>
+    <div class="status-microfone" id="statusMicrofone">Clique em Iniciar para começar.</div>
 
     <div class="contador-palavras" id="contadorPalavras">Palavras lidas: 0 / 100</div>
 
@@ -227,13 +227,11 @@
     <div class="mensagem-resultado" id="mensagemResultado"></div>
 
     <div class="creditos">
-        Desenvolvido para incentivar a leitura infantil ❤️
+        Desenvolvido para incentivar a leitura infantil Erik Alves
     </div>
 </div>
 
-<script type="module">
-    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.14.0';
-
+<script>
     const textos = [
         "Era uma vez um cachorrinho muito esperto chamado Bob. Bob adorava correr pelo parque todas as manhãs. Ele gostava de perseguir passarinhos e brincar com as folhas secas que caíam das árvores. Um dia Bob encontrou uma bola vermelha escondida no arbusto. Ele ficou muito feliz e levou a bola na boca até a sua casa. O seu dono vendo aquela alegria deu um delicioso osso para ele. Bob comeu o osso e depois dormiu bem quentinho na sua cama macia. Foi um dia incrível para o pequeno cãozinho que sonhou com novas aventuras divertidas no parque.",
         "No céu azul brilhava uma pequena estrela chamada Luma. Luma era muito curiosa e gostava de olhar para a Terra durante a noite. Ela via as luzes das casas e as crianças dormindo em suas camas. Um dia Luma pediu permissão para a Lua para brilhar um pouco mais forte. A Lua sorriu e deixou. Luma piscou bem alto e iluminou o caminho de um gatinho que estava perdido na rua. O gatinho encontrou a sua casa e miou de felicidade. Luma ficou orgulhos de ter ajudado o seu novo amigo e continuou a brilhar alegremente no céu.",
@@ -248,27 +246,22 @@
     let rodando = false;
     let indicePalavraAtual = 0;
     let palavrasArray = [];
+    let recognition = null;
 
-    let transcriber = null;
-    let mediaRecorder = null;
-    let audioChunks = [];
-
-    // Função para emitir som de alarme ao terminar o tempo
+    // Emite o som de alarme quando o tempo acaba
     function tocarSomFimDoTempo() {
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             const audioCtx = new AudioContext();
             
-            // Emite 3 bipes sonoros curtos
-            const temposBip = [0, 0.25, 0.5];
-            temposBip.forEach(atTime => {
+            [0, 0.25, 0.5, 0.75].forEach(atTime => {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
 
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(520, audioCtx.currentTime + atTime); // Frequência do bipe
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(600, audioCtx.currentTime + atTime);
 
-                gain.gain.setValueAtTime(0.3, audioCtx.currentTime + atTime);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime + atTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + atTime + 0.18);
 
                 osc.connect(gain);
@@ -278,18 +271,41 @@
                 osc.stop(audioCtx.currentTime + atTime + 0.18);
             });
         } catch (e) {
-            console.error("Erro ao tocar áudio:", e);
+            console.error("Erro no som:", e);
         }
     }
 
-    async function initWhisper() {
-        try {
-            document.getElementById('statusMicrofone').innerText = "⏳ Carregando modelo Whisper da OpenAI (aguarde)...";
-            transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny');
-            document.getElementById('statusMicrofone').innerText = "✅ IA de voz pronta! Clique em Iniciar.";
-        } catch(e) {
-            document.getElementById('statusMicrofone').innerText = "⚠️ Erro ao carregar IA. Você pode tocar no texto para marcar.";
+    function inicializarReconhecimento() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            document.getElementById('statusMicrofone').innerText = "⚠️ Seu navegador não suporta voz. Use o toque no texto!";
+            return;
         }
+
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'pt-BR';
+
+        recognition.onresult = (event) => {
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                const transcricao = event.results[i][0].transcript;
+                processarTextoOuvido(transcricao);
+            }
+        };
+
+        // Reinicia automaticamente caso caia por silêncio curto
+        recognition.onend = () => {
+            if (rodando) {
+                try { recognition.start(); } catch(e) {}
+            }
+        };
+
+        recognition.onerror = (e) => {
+            if (e.error !== 'no-speech' && rodando) {
+                try { recognition.start(); } catch(err) {}
+            }
+        };
     }
 
     function renderizarTexto() {
@@ -316,41 +332,12 @@
         return termo.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toLowerCase().trim();
     }
 
-    async function gravarEProcessar() {
-        if (!rodando) return;
-
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-
-            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-            mediaRecorder.onstop = async () => {
-                const blob = new Blob(audioChunks, { type: 'audio/wav' });
-                if (transcriber && rodando) {
-                    const audioUrl = URL.createObjectURL(blob);
-                    const output = await transcriber(audioUrl, { language: 'portuguese', task: 'transcribe' });
-                    if (output && output.text) {
-                        processarTextoOuvido(output.text);
-                    }
-                }
-                if (rodando) gravarEProcessar();
-            };
-
-            mediaRecorder.start();
-            setTimeout(() => {
-                if (mediaRecorder && mediaRecorder.state === "recording") {
-                    mediaRecorder.stop();
-                }
-            }, 3000);
-        } catch(e) {
-            console.error(e);
-        }
-    }
-
     function processarTextoOuvido(texto) {
         const ouvidas = texto.split(/\s+/).map(normalizar);
+        
         ouvidas.forEach(pFalada => {
+            if (!pFalada) return;
+            // Valida a palavra atual e até 2 palavras à frente
             for (let i = 0; i <= 2; i++) {
                 const idx = indicePalavraAtual + i;
                 if (idx < palavrasArray.length) {
@@ -416,7 +403,7 @@
         }
     }
 
-    window.selecionarTexto = (index) => {
+    function selecionarTexto(index) {
         reiniciarTudo();
         textoAtualIndex = index;
         
@@ -427,19 +414,19 @@
         });
 
         renderizarTexto();
-    };
+    }
 
     function atualizarContador() {
         document.getElementById('contadorPalavras').innerText = `Palavras lidas: ${indicePalavraAtual} / ${palavrasArray.length}`;
     }
 
-    window.alternarLeitura = () => {
+    function alternarLeitura() {
         if (rodando) {
             pausarLeitura();
         } else {
             iniciarLeitura();
         }
-    };
+    }
 
     function iniciarLeitura() {
         if (tempoRestante <= 0 || indicePalavraAtual >= palavrasArray.length) return;
@@ -447,9 +434,11 @@
         rodando = true;
         document.getElementById('btnIniciar').innerText = "⏸️ Pausar";
         document.getElementById('btnIniciar').style.backgroundColor = "#e53e3e";
-        document.getElementById('statusMicrofone').innerText = "🎙️ Ouvindo com IA...";
+        document.getElementById('statusMicrofone').innerText = "🎙️ Microfone ativo. Pode ler!";
 
-        gravarEProcessar();
+        if (recognition) {
+            try { recognition.start(); } catch(e) {}
+        }
 
         cronometroInterval = setInterval(() => {
             tempoRestante--;
@@ -466,10 +455,10 @@
         clearInterval(cronometroInterval);
         document.getElementById('btnIniciar').innerText = "▶️ Continuar";
         document.getElementById('btnIniciar').style.backgroundColor = "#48bb78";
-        document.getElementById('statusMicrofone').innerText = "";
+        document.getElementById('statusMicrofone').innerText = "Pausado.";
 
-        if (mediaRecorder && mediaRecorder.state === "recording") {
-            mediaRecorder.stop();
+        if (recognition) {
+            try { recognition.stop(); } catch(e) {}
         }
     }
 
@@ -489,27 +478,28 @@
             msgDiv.className = "mensagem-resultado mensagem-sucesso";
             msgDiv.innerHTML = "🎉 <b>PARABÉNS!</b><br>Você leu as 100 palavras em menos de 1 minuto! 🏆⭐";
         } else {
-            tocarSomFimDoTempo(); // Dispara o som de alarme ao esgotar o tempo
+            tocarSomFimDoTempo();
             msgDiv.className = "mensagem-resultado mensagem-falha";
             msgDiv.innerHTML = `⏳ <b>O tempo acabou!</b><br>Você leu <b>${indicePalavraAtual} palavras</b>.<br>Continue treinando! 💪✨`;
         }
     }
 
-    window.reiniciarTudo = () => {
+    function reiniciarTudo() {
         pausarLeitura();
         tempoRestante = 60;
         indicePalavraAtual = 0;
         document.getElementById('btnIniciar').disabled = false;
         document.getElementById('btnIniciar').innerText = "▶️ Iniciar Leitura";
         document.getElementById('btnIniciar').style.backgroundColor = "#48bb78";
+        document.getElementById('statusMicrofone').innerText = "Clique em Iniciar para começar.";
         document.getElementById('mensagemResultado').style.display = "none";
         atualizarDisplayTempo();
         renderizarTexto();
-    };
+    }
 
     window.onload = () => {
         renderizarTexto();
-        initWhisper();
+        inicializarReconhecimento();
     };
 </script>
 
